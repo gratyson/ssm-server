@@ -1,0 +1,196 @@
+type Query {
+    secretType(id: String): SecretType
+    secretTypes: [SecretType]!
+
+    keyTypes: [KeyType]!
+
+    ownedSecrets: SecretsResponse
+    ownedSecret(id: String!): SecretResponse
+
+    ownedKeys: [Key]
+    ownedKey(id: String!): Key
+
+    loggedInUsername: String
+}
+
+type Mutation {
+    saveSecret(secretInput: SecretInput!): SecretResponse
+    unlockSecret(unlockRequest: UnlockRequest!): UnlockResponse
+    deleteSecret(secretId: String!): DeleteSecretResponse
+
+    saveNewKey(saveKeyInput: SaveKeyInput!): SaveKeyResponse
+    updateKey(updateKeyInput: UpdateKeyInput!): SaveKeyResponse
+    deleteKey(keyId: String!): DeleteKeyResponse
+
+    login(user: UserInput!): AuthResponse
+    register(user: UserInput!): AuthResponse
+    logout: AuthResponse
+}
+
+type Secret {
+    id: ID!
+    imageName: String
+    name: String
+    comments: String
+    type: SecretType
+    key: Key
+
+    # Only one of the following with be set based on the secret type
+    websitePasswordComponents: WebsitePasswordComponents
+    creditCardComponents: CreditCardComponents
+    textBlobComponents: TextBlobComponents
+}
+
+type SecretResponse {
+    success: Boolean
+    secret: Secret
+    errorMsg: String
+}
+
+type SecretsResponse {
+    success: Boolean
+    secrets: [Secret]
+    errorMsg: String
+}
+
+type DeleteSecretResponse {
+    success: Boolean
+    errorMsg: String
+}
+
+type Key {
+    id: ID!
+    name: String
+    comments: String
+    type: KeyType
+    salt: String
+    algorithm: String
+    imageName: String
+}
+
+type KeyType {
+    id: String!
+    name: String
+    abbr: String
+}
+
+input SaveKeyInput {
+    name: String
+    comments: String
+    typeId: String
+    keyPassword: String
+    imageName: String
+}
+
+input UpdateKeyInput {
+    id: ID
+    name: String
+    comments: String
+    imageName: String
+}
+
+type SaveKeyResponse {
+    success: Boolean!
+    key: Key
+    errorMsg: String
+}
+
+type DeleteKeyResponse {
+    success: Boolean
+    errorMsg: String
+}
+
+type SecretComponent {
+    id: ID!
+    value: String
+    encrypted: Boolean
+    encryptionAlgorithm: String
+}
+
+type WebsitePasswordComponents {
+    website: SecretComponent
+    username: SecretComponent
+    password: SecretComponent
+}
+
+type CreditCardComponents {
+    companyName: SecretComponent
+    cardNumber: SecretComponent
+    expirationMonth: SecretComponent
+    expirationYear: SecretComponent
+    securityCode: SecretComponent
+}
+
+type TextBlobComponents {
+    textBlob: SecretComponent
+}
+
+type SecretType {
+    id: String!
+    name: String
+    abbr: String
+}
+
+type SecretComponentType {
+    id: String!
+    name: String
+    encrypted: Boolean
+}
+
+input SecretInput {
+    id: ID!
+    imageName: String
+    name: String
+    comments: String
+    typeId: String
+    keyId: String
+    keyPassword: String
+
+    websitePasswordComponents: WebsitePasswordComponentsInput
+    creditCardComponents: CreditCardComponentsInput
+    textBlobComponents: TextBlobComponentsInput
+}
+
+input WebsitePasswordComponentsInput {
+    website: SecretComponentInput
+    username: SecretComponentInput
+    password: SecretComponentInput
+}
+
+input CreditCardComponentsInput {
+    companyName: SecretComponentInput
+    cardNumber: SecretComponentInput
+    expirationMonth: SecretComponentInput
+    expirationYear: SecretComponentInput
+    securityCode: SecretComponentInput
+}
+
+input TextBlobComponentsInput {
+    textBlob: SecretComponentInput
+}
+
+input SecretComponentInput {
+    id: ID
+    value: String
+}
+
+input UserInput {
+    username: String
+    password: String
+}
+
+type AuthResponse {
+    success: Boolean!
+    errorMsg: String
+}
+
+input UnlockRequest {
+    secretId: String
+    keyPassword: String
+}
+
+type UnlockResponse {
+    success: Boolean
+    secret: Secret
+    errorMsg: String
+}
