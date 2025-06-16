@@ -1,14 +1,18 @@
 package com.gt.ssm.crypt;
 
+import com.google.crypto.tink.subtle.Base64;
 import com.gt.ssm.exception.SecretEncryptionException;
 import org.springframework.beans.factory.BeanInitializationException;
 
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class EncryptionService {
+
+    private static final String CHARSET_NAME = "UTF-8";
 
     private final Map<String, EncryptionServiceForAlgorithm> encryptionServiceByAlgorithm;
     private final String encryptAlgorithm;
@@ -36,10 +40,18 @@ public class EncryptionService {
     }
 
     public String encrypt(String data, byte[] keyBytes, String iv) {
+        return Base64.encode(encrypt(data.getBytes(Charset.forName(CHARSET_NAME)), keyBytes, iv));
+    }
+
+    public byte[] encrypt(byte[] data, byte[] keyBytes, String iv) {
         return getEncryptionService(encryptAlgorithm).encrypt(data, keyBytes, iv);
     }
 
     public String decrypt(String encryptedData, byte[] keyBytes, String iv, String algorithm) {
+        return new String(decrypt(Base64.decode(encryptedData), keyBytes, iv, algorithm), Charset.forName(CHARSET_NAME));
+    }
+
+    public byte[] decrypt(byte[] encryptedData, byte[] keyBytes, String iv, String algorithm) {
         return getEncryptionService(algorithm).decrypt(encryptedData, keyBytes, iv);
     }
 

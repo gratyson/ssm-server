@@ -36,6 +36,8 @@ public class SecretController {
     private static final String KEY_FIELD_ID_NAME = "id";
     private static final int KEY_FIELD_LEVEL = 4;
 
+    private static final String SECRET_COMPONENT_TYPE_NAME = "SecretComponent";
+
     private final SecretService secretService;
     private final SecretTypeService secretTypeService;
 
@@ -128,7 +130,7 @@ public class SecretController {
                     for (SelectedField secretComponentFields : baseSecretField.getSelectionSet().getFields(componentFieldName)) {
                         for (SelectedField selectedField : secretComponentFields.getSelectionSet().getFields()) {
                             if (selectedField.getLevel() == SECRET_COMPONENT_FIELD_LEVEL && !selectedField.getName().startsWith("_")) {
-                                selectedSecretComponents.add(selectedField.getName());
+                                selectedSecretComponents.addAll(processComponentField(selectedField));
                             }
                         }
                     }
@@ -137,6 +139,28 @@ public class SecretController {
         }
 
         return selectedSecretComponents;
+    }
+
+    private List<String> processComponentField(SelectedField selectedField) {
+        if (isFieldSecretComponent(selectedField)) {
+            return List.of(selectedField.getName());
+        }
+
+        List<String> componentFields = new ArrayList<>();
+        for(SelectedField childField : selectedField.getSelectionSet().getImmediateFields()) {
+            componentFields.addAll(processComponentField(childField));
+        }
+        return componentFields;
+    }
+
+    private boolean isFieldSecretComponent(SelectedField selectedField) {
+        List<SelectedField> childFields = selectedField.getSelectionSet().getImmediateFields();
+
+        if (childFields != null && childFields.size() > 0) {
+            return childFields.get(0).getObjectTypeNames().contains("SecretComponent");
+        }
+
+        return false;
     }
 
     private boolean hasKeyDataFields(DataFetchingFieldSelectionSet dataFetchingFieldSelectionSet) {

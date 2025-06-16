@@ -1,16 +1,19 @@
 package com.gt.ssm.secret.model;
 
-import java.util.Map;
+import com.gt.ssm.model.SecretComponentType;
+import graphql.com.google.common.collect.ImmutableMap;
 
 public record QlCreditCardComponentsInput(QlComponentInput companyName, QlComponentInput cardNumber, QlComponentInput expirationMonth, QlComponentInput expirationYear, QlComponentInput securityCode) implements QlComponentsInput {
     @Override
-    public Map<String, QlComponentInput> toComponentTypeInputs() {
-        return new IgnoreNullsMapBuilder()
-                .withEntry("company_name", companyName)
-                .withEntry("card_number", cardNumber)
-                .withEntry("expiration_month", expirationMonth)
-                .withEntry("expiration_year", expirationYear)
-                .withEntry("security_code", securityCode)
-                .Build();
+    public QlComponentInputs toComponentTypeInputs() {
+        return new QlComponentInputs(
+                new IgnoreNullsMapBuilder()
+                    .withEntry(SecretComponentType.COMPANY_NAME, companyName)
+                    .withEntry(SecretComponentType.CARD_NUMBER, cardNumber)
+                    .withEntry(SecretComponentType.EXPIRATION_MONTH, expirationMonth)
+                    .withEntry(SecretComponentType.EXPIRATION_YEAR, expirationYear)
+                    .withEntry(SecretComponentType.SECURITY_CODE, securityCode)
+                    .Build(),
+                ImmutableMap.of());
     }
 }

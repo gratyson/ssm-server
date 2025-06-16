@@ -2,12 +2,14 @@ package com.gt.ssm.secret;
 
 import com.gt.ssm.crypt.EncryptionService;
 import com.gt.ssm.exception.DaoException;
+import com.gt.ssm.files.SecretFilesService;
 import com.gt.ssm.key.KeyService;
 import com.gt.ssm.key.model.QlKey;
 import com.gt.ssm.crypt.EncryptedKeyService;
 import com.gt.ssm.model.Secret;
 import com.gt.ssm.model.SecretComponent;
 import com.gt.ssm.model.SecretComponentType;
+import com.gt.ssm.model.SecretType;
 import com.gt.ssm.secret.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class SecretService {
@@ -23,6 +26,7 @@ public class SecretService {
 
     private final SecretDao secretDao;
     private final SecretTypeService secretTypeService;
+    private final SecretFilesService secretFilesService;
     private final KeyService keyService;
     private final SecretComponentTypeService secretComponentTypeService;
     private final EncryptionService encryptionService;
@@ -31,12 +35,14 @@ public class SecretService {
     @Autowired
     public SecretService(SecretDao secretDao,
                          SecretTypeService secretTypeService,
+                         SecretFilesService secretFilesService,
                          KeyService keyService,
                          SecretComponentTypeService secretComponentTypeService,
                          EncryptionService encryptionService,
                          EncryptedKeyService encryptedKeyService) {
         this.secretDao = secretDao;
         this.secretTypeService = secretTypeService;
+        this.secretFilesService = secretFilesService;
         this.keyService = keyService;
         this.secretComponentTypeService = secretComponentTypeService;
         this.encryptionService = encryptionService;
@@ -62,7 +68,10 @@ public class SecretService {
     public QlSecret saveSecret(QlSecretInput input, String owner, String keyPassword, boolean keyRequested) {
         Secret secretToSave = toSecret(input, owner, keyPassword);
 
+        List<String> filesToDelete = getSecretFilesToDelete(secretToSave, owner);
+
         if (secretDao.saveSecret(secretToSave) > 0) {
+            deleteSecretFiles(filesToDelete, owner);
             return toQlSecret(secretToSave, keyRequested);
         }
 
@@ -72,7 +81,12 @@ public class SecretService {
     public void deleteSecret(String id, String owner) {
         verifyOwner(id, owner);
 
-        if (secretDao.deleteSecret(id) == 0) {
+        List<String> secretFileIdsToDelete = getSecretFilesToDelete(id, owner);
+
+        if (secretDao.deleteSecret(id) > 0) {
+            deleteSecretFiles(secretFileIdsToDelete, owner);
+        }
+        else {
             log.warn("User {} was unable to delete secret {}", owner, id);
             throw new DaoException("No owned secret to delete");
         }
@@ -94,6 +108,16 @@ public class SecretService {
         return toQlSecret(unlockedSecret, keyRequested);
     }
 
+    private void deleteSecretFiles(List<String> fileIds, String owner) {
+        for (String fileIdToDelete : fileIds) {
+            try {
+                secretFilesService.deleteSecretFile(owner, fileIdToDelete);
+            } catch (Exception ex) {
+                log.warn("Failed to delete file {} after deleting secret", fileIdToDelete);
+            }
+        }
+    }
+
     private void verifyOwner(String id, String owner) {
         Secret secret = secretDao.getSecretWithComponents(id, owner, List.of());
 
@@ -112,6 +136,7 @@ public class SecretService {
             if (secretComponent.encrypted()) {
                 unlockedComponents.add(new SecretComponent(
                         secretComponent.id(),
+                        secretComponent.line(),
                         secretComponent.secretId(),
                         secretComponent.componentType(),
                         encryptionService.decrypt(secretComponent.value(), key, secretComponent.id(), secretComponent.encryptionAlgorithm()),
@@ -141,9 +166,10 @@ public class SecretService {
                     secret.comments(),
                     secretTypeService.getSecretTypeById(secret.secretType()),
                     key,
-                    getWebsitePasswordComponents(secret.secretComponents()),
-                    getCreditCardComponents(secret.secretComponents()),
-                    getTextBlobComponents(secret.secretComponents()));
+                    QlWebsitePasswordComponents.fromSecretComponents(secret.secretComponents()),
+                    QlCreditCardComponents.fromSecretComponents(secret.secretComponents()),
+                    QlTextBlobComponents.fromSecretComponents(secret.secretComponents()),
+                    QlFilesComponents.fromSecretComponents(secret.secretComponents()));
     }
 
     private Secret toSecret(QlSecretInput secretInput, String owner, String keyPassword) {
@@ -159,6 +185,7 @@ public class SecretService {
         secretComponents.addAll(toSecretComponents(secretInput.websitePasswordComponents(), id, key));
         secretComponents.addAll(toSecretComponents(secretInput.creditCardComponents(), id, key));
         secretComponents.addAll(toSecretComponents(secretInput.textBlobComponents(), id, key));
+        secretComponents.addAll(toSecretComponents(secretInput.filesComponents(), id, key));
 
         return new Secret(id, owner, secretInput.imageName(), secretInput.typeId(), secretInput.name(), secretInput.comments(), secretInput.keyId(), secretComponents);
     }
@@ -167,44 +194,24 @@ public class SecretService {
         List<SecretComponent> secretComponents = new ArrayList<>();
 
         if (componentsInput != null) {
-            for (Map.Entry<String, QlComponentInput> componentEntry : componentsInput.toComponentTypeInputs().entrySet()) {
+            for (Map.Entry<String, QlComponentInput> componentEntry : componentsInput.toComponentTypeInputs().scalarComponents().entrySet()) {
                 secretComponents.add(toSecretComponent(componentEntry.getKey(), componentEntry.getValue(), secretId, key));
+            }
+            for (Map.Entry<String, QlComponentInput[]> componentEntry : componentsInput.toComponentTypeInputs().arrayComponents().entrySet()) {
+                for (int line = 0; line < componentEntry.getValue().length; line++) {
+                    secretComponents.add(toSecretComponent(componentEntry.getKey(), componentEntry.getValue()[line], line, secretId, key));
+                }
             }
         }
 
         return secretComponents;
     }
 
-    private QlWebsitePasswordComponents getWebsitePasswordComponents(List<SecretComponent> secretComponents) {
-        SecretComponent websiteComponent = null;
-        SecretComponent usernameComponent = null;
-        SecretComponent passwordComponent = null;
-
-        for(SecretComponent secretComponent : secretComponents) {
-            switch(secretComponent.componentType()) {
-                case SecretComponentType.WEBSITE:
-                    websiteComponent = secretComponent;
-                    break;
-                case SecretComponentType.USERNAME:
-                    usernameComponent = secretComponent;
-                    break;
-                case SecretComponentType.PASSWORD:
-                    passwordComponent = secretComponent;
-                    break;
-            }
-        }
-
-        if (websiteComponent != null || usernameComponent != null || passwordComponent != null) {
-            return new QlWebsitePasswordComponents(
-                    toQlSecretComponent(websiteComponent),
-                    toQlSecretComponent(usernameComponent),
-                    toQlSecretComponent(passwordComponent));
-        }
-
-        return null;
+    private SecretComponent toSecretComponent(String componentTypeId, QlComponentInput componentInput, String secretId, byte[] key) {
+        return toSecretComponent(componentTypeId, componentInput, 1, secretId, key);
     }
 
-    private SecretComponent toSecretComponent(String componentTypeId, QlComponentInput componentInput, String secretId, byte[] key) {
+    private SecretComponent toSecretComponent(String componentTypeId, QlComponentInput componentInput, int line, String secretId, byte[] key) {
         SecretComponentType secretComponentType = secretComponentTypeService.getComponentByTypeId(componentTypeId);
 
         String componentIdToUse = componentInput.id();
@@ -215,80 +222,10 @@ public class SecretService {
         if (secretComponentType != null && componentInput.value() != null && !componentInput.value().isEmpty() && secretComponentType.encrypted()) {
             String encryptedValue = encryptionService.encrypt(componentInput.value(), key, componentIdToUse);
 
-            return new SecretComponent(componentIdToUse, secretId, componentTypeId, encryptedValue, true, encryptionService.getCurrentEncryptAlgorithm());
+            return new SecretComponent(componentIdToUse, line, secretId, componentTypeId, encryptedValue, true, encryptionService.getCurrentEncryptAlgorithm());
         }
 
-        return new SecretComponent(componentIdToUse, secretId, componentTypeId, componentInput.value(), false, "");
-    }
-
-    private QlCreditCardComponents getCreditCardComponents(List<SecretComponent> secretComponents) {
-        SecretComponent companyName = null;
-        SecretComponent cardNumberComponent = null;
-        SecretComponent securityCodeComponent = null;
-        SecretComponent expirationMonthComponent = null;
-        SecretComponent expirationYearComponent = null;
-
-        for(SecretComponent secretComponent : secretComponents) {
-            switch(secretComponent.componentType()) {
-                case SecretComponentType.COMPANY_NAME:
-                    companyName = secretComponent;
-                    break;
-                case SecretComponentType.CARD_NUMBER:
-                    cardNumberComponent = secretComponent;
-                    break;
-                case SecretComponentType.SECURITY_CODE:
-                    securityCodeComponent = secretComponent;
-                    break;
-                case SecretComponentType.EXPIRATION_MONTH:
-                    expirationMonthComponent = secretComponent;
-                    break;
-                case SecretComponentType.EXPIRATION_YEAR:
-                    expirationYearComponent = secretComponent;
-                    break;
-            }
-        }
-
-        if (companyName != null ||
-            cardNumberComponent != null ||
-            securityCodeComponent != null ||
-            expirationMonthComponent != null ||
-            expirationYearComponent != null) {
-            return new QlCreditCardComponents(
-                    toQlSecretComponent(companyName),
-                    toQlSecretComponent(cardNumberComponent),
-                    toQlSecretComponent(expirationMonthComponent),
-                    toQlSecretComponent(expirationYearComponent),
-                    toQlSecretComponent(securityCodeComponent));
-        }
-
-        return null;
-    }
-
-    private QlTextBlobComponents getTextBlobComponents(List<SecretComponent> secretComponents) {
-        SecretComponent textBlob = null;
-
-        for(SecretComponent secretComponent : secretComponents) {
-            switch (secretComponent.componentType()) {
-                case SecretComponentType.TEXT_BLOB:
-                    textBlob = secretComponent;
-                    break;
-            }
-        }
-
-        if (textBlob != null) {
-            return new QlTextBlobComponents(
-                    toQlSecretComponent(textBlob));
-        }
-
-        return null;
-    }
-
-    private QlSecretComponent toQlSecretComponent(SecretComponent secretComponent) {
-        if (secretComponent == null) {
-            return null;
-        }
-
-        return new QlSecretComponent(secretComponent.id(), secretComponent.value(), secretComponent.encrypted(), secretComponent.encryptionAlgorithm());
+        return new SecretComponent(componentIdToUse, line, secretId, componentTypeId, componentInput.value(), false, "");
     }
 
     private QlKey loadKey(String owner, String keyId) {
@@ -305,5 +242,40 @@ public class SecretService {
         }
 
         return qlComponentNames.stream().map(qlComponentName -> secretComponentTypeService.getComponentByTypeQlName(qlComponentName).id()).toList();
+    }
+
+    private List<String> getSecretFilesToDelete(String secretId, String owner) {
+        return getSecretFilesToDelete(secretId, owner, Set.of());
+    }
+
+    private List<String> getSecretFilesToDelete(Secret secretToSave, String owner) {
+        Set<String> fileIdsToSave = secretToSave.secretComponents()
+                .stream()
+                .filter(secretComponent -> secretComponent.componentType().equals(SecretComponentType.FILE_ID))
+                .map(secretComponent -> secretComponent.value())
+                .collect(Collectors.toSet());
+
+        if (fileIdsToSave.isEmpty()) {
+            return List.of();
+        } else {
+            return getSecretFilesToDelete(secretToSave.id(), owner, fileIdsToSave);
+        }
+    }
+
+    private List<String> getSecretFilesToDelete(String secretId, String owner, Set<String> idsToKeep) {
+        Secret secret = secretDao.getSecretWithComponents(secretId, owner, List.of(SecretComponentType.FILE_ID));
+
+        if (secret == null || secret.secretComponents() == null) {
+            return List.of();
+        }
+
+        return secret.secretComponents().stream()
+                .filter(secretComponent -> (
+                        secretComponent.componentType().equals(SecretComponentType.FILE_ID))
+                        && !secretComponent.encrypted()
+                        && !idsToKeep.contains(secretComponent.value()))
+                .map(secretComponent -> secretComponent.value())
+                .distinct()
+                .collect(Collectors.toUnmodifiableList());
     }
 }

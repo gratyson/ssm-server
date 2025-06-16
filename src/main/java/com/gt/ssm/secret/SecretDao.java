@@ -2,7 +2,6 @@ package com.gt.ssm.secret;
 
 import com.gt.ssm.model.Secret;
 import com.gt.ssm.model.SecretComponent;
-import org.postgresql.shaded.com.ongres.scram.common.bouncycastle.pbkdf2.Integers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,10 +11,8 @@ import org.springframework.stereotype.Component;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class SecretDao {
@@ -29,7 +26,7 @@ public class SecretDao {
 
     private static final String GET_SECRET_WITH_COMPONENTS_QUERY_PREFIX_SQL =
             "SELECT s.id, s.image_name, s.secret_type, s.name, s.comments, s.key_id, " +
-                   "c.id as c_id, c.component_type, c.value, c.encrypted, c.encryption_algorithm " +
+                   "c.id as c_id, c.line, c.component_type, c.value, c.encrypted, c.encryption_algorithm " +
                 "FROM secrets s LEFT JOIN " +
                     "(";
     private static final String GET_SECRET_WITH_COMPONENTS_QUERY_SUFFIX_SQL =
@@ -42,7 +39,7 @@ public class SecretDao {
             "ORDER BY s.id ";
 
     private static final String GET_SECRET_SUBCOMPONENTS_QUERY_PREFIX_SQL =
-            "SELECT id, secret_id, component_type, value, encrypted, encryption_algorithm " +
+            "SELECT id, line, secret_id, component_type, value, encrypted, encryption_algorithm " +
                     "FROM secret_components " +
                     "WHERE component_type IN (:componentTypes) ";
     private static final String GET_SECRET_COMPONENTS_SUBQUERY_ID_CONDITION =
@@ -57,10 +54,13 @@ public class SecretDao {
                 "ON CONFLICT (id) DO UPDATE " +
                     "SET image_name = :imageName, owner = :owner, secret_type = :secretType, name = :name, comments = :comments, key_id = :keyId";
     private static final String SAVE_SECRET_COMPONENT_SQL =
-            "INSERT INTO secret_components (id, secret_id, component_type, value, encrypted, encryption_algorithm) " +
-                    "VALUES (:id, :secretId, :componentType, :value, :encrypted, :encryptionAlgorithm) " +
+            "INSERT INTO secret_components (id, line, secret_id, component_type, value, encrypted, encryption_algorithm) " +
+                    "VALUES (:id, :line, :secretId, :componentType, :value, :encrypted, :encryptionAlgorithm) " +
                 "ON CONFLICT (id) DO UPDATE " +
                     "SET secret_id = :secretId, component_type = :componentType, value = :value, encrypted = :encrypted, encryption_algorithm = :encryptionAlgorithm";
+    private static final String DELETE_EXCESS_COMPONENT_ROWS_SQL =
+            "DELETE FROM secret_components " +
+            "WHERE secret_id = :secretId AND component_type IN (:existingTypes) AND id NOT IN (:existingComponentIds)";
     private static final String COUNT_SECRETS_USING_KEY =
             "SELECT count(id) FROM secrets WHERE key_id = :keyId";
     private static final String DELETE_SECRET_SQL =
@@ -76,7 +76,6 @@ public class SecretDao {
     }
 
     public Secret getSecretWithComponents(String secretId, String owner, Collection<String> componentTypes) {
-        log.info("getSecretWithComponents: " + componentTypes);
         MapSqlParameterSource secretSource = new MapSqlParameterSource();
         secretSource.addValue("id", secretId);
         secretSource.addValue("owner", owner);
@@ -122,9 +121,10 @@ public class SecretDao {
             MapSqlParameterSource[] componentsSource = new MapSqlParameterSource[secret.secretComponents().size()];
             for (int i = 0; i < secret.secretComponents().size(); i++) {
                 componentsSource[i] = new MapSqlParameterSource();
-                SecretComponent component =secret.secretComponents().get(i);
+                SecretComponent component = secret.secretComponents().get(i);
 
                 componentsSource[i].addValue("id", component.id());
+                componentsSource[i].addValue("line", component.line());
                 componentsSource[i].addValue("secretId", component.secretId());
                 componentsSource[i].addValue("componentType", component.componentType());
                 componentsSource[i].addValue("value", component.value());
@@ -134,6 +134,12 @@ public class SecretDao {
 
             template.batchUpdate(SAVE_SECRET_COMPONENT_SQL, componentsSource);
         }
+
+        template.update(
+                DELETE_EXCESS_COMPONENT_ROWS_SQL,
+                Map.of("secretId", secret.id(),
+                       "existingTypes", secret.secretComponents().stream().map(component -> component.componentType()).distinct().collect(Collectors.toUnmodifiableList()),
+                       "existingComponentIds", secret.secretComponents().stream().map(component -> component.id()).distinct().collect(Collectors.toUnmodifiableList())));
 
         return rowsUpdated;
     }
@@ -174,6 +180,7 @@ public class SecretDao {
             if (componentId != null && !componentId.isBlank()) {
                 secretComponents.add(new SecretComponent(
                         componentId,
+                        rs.getInt("line"),
                         secretId,
                         rs.getString("component_type"),
                         rs.getString("value"),

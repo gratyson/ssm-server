@@ -9,4 +9,5 @@ public record QlSecretInput(String id,
                             String keyPassword,
                             QlWebsitePasswordComponentsInput websitePasswordComponents,
                             QlCreditCardComponentsInput creditCardComponents,
-                            QlTextBlobComponentsInput textBlobComponents) { }
+                            QlTextBlobComponentsInput textBlobComponents,
+                            QlFilesComponentsInput filesComponents) { }

@@ -28,6 +28,13 @@ INSERT INTO component_type (id, name, encrypted, ql_name)
 INSERT INTO component_type (id, name, encrypted, ql_name)
     VALUES ('username', 'Username', true, 'username');
 
+INSERT INTO component_type (id, name, encrypted, ql_name)
+    VALUES ('file_id', 'File ID', false, 'fileId');
+
+INSERT INTO component_type (id, name, encrypted, ql_name)
+    VALUES ('file_name', 'File Name', true, 'fileName');
+
+
 -- Key types
 INSERT INTO key_type(id, name, abbr)
     VALUES ('direct_lock', 'Direct Lock', 'Direct');
@@ -44,3 +51,6 @@ INSERT INTO secret_type(id, name, abbr)
 
 INSERT INTO secret_type(id, name, abbr)
     VALUES ('text_blob', 'Text Blob', 'Text');
+
+INSERT INTO secret_type(id, name, abbr)
+    VALUES ('files', 'Files', 'Files');

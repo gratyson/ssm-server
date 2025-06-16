@@ -6,7 +6,7 @@ public interface EncryptionServiceForAlgorithm {
 
     byte[] getKeyFromPassword(String keyPassword, String salt);
 
-    String encrypt(String data, byte[] key, String iv);
+    byte[] encrypt(byte[] data, byte[] key, String iv);
 
-    String decrypt(String encrypted, byte[] key, String iv);
+    byte[] decrypt(byte[] encrypted, byte[] key, String iv);
 }

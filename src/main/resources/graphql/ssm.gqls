@@ -39,6 +39,7 @@ type Secret {
     websitePasswordComponents: WebsitePasswordComponents
     creditCardComponents: CreditCardComponents
     textBlobComponents: TextBlobComponents
+    filesComponents: FilesComponents
 }
 
 type SecretResponse {
@@ -125,6 +126,15 @@ type TextBlobComponents {
     textBlob: SecretComponent
 }
 
+type FilesComponents {
+    files: [FilesComponentFile]
+}
+
+type FilesComponentFile {
+    fileId: SecretComponent
+    fileName: SecretComponent
+}
+
 type SecretType {
     id: String!
     name: String
@@ -149,6 +159,7 @@ input SecretInput {
     websitePasswordComponents: WebsitePasswordComponentsInput
     creditCardComponents: CreditCardComponentsInput
     textBlobComponents: TextBlobComponentsInput
+    filesComponents: FilesComponentsInput
 }
 
 input WebsitePasswordComponentsInput {
@@ -167,6 +178,15 @@ input CreditCardComponentsInput {
 
 input TextBlobComponentsInput {
     textBlob: SecretComponentInput
+}
+
+input FilesComponentsInput {
+    files: [FilesComponentFileInput]
+}
+
+input FilesComponentFileInput {
+    fileId: SecretComponentInput
+    fileName: SecretComponentInput
 }
 
 input SecretComponentInput {

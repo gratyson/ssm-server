@@ -1,12 +1,15 @@
 package com.gt.ssm.secret.model;
 
-import java.util.Map;
+import com.gt.ssm.model.SecretComponentType;
+import graphql.com.google.common.collect.ImmutableMap;
 
 public record QlTextBlobComponentsInput(QlComponentInput textBlob) implements QlComponentsInput {
     @Override
-    public Map<String, QlComponentInput> toComponentTypeInputs() {
-        return new IgnoreNullsMapBuilder()
-                .withEntry("text_blob", textBlob)
-                .Build();
+    public QlComponentInputs toComponentTypeInputs() {
+        return new QlComponentInputs(
+            new IgnoreNullsMapBuilder()
+                .withEntry(SecretComponentType.TEXT_BLOB, textBlob)
+                .Build(),
+                ImmutableMap.of());
     }
 }

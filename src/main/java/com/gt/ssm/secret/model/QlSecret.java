@@ -11,4 +11,5 @@ public record QlSecret(String id,
                        QlKey key,
                        QlWebsitePasswordComponents websitePasswordComponents,
                        QlCreditCardComponents creditCardComponents,
-                       QlTextBlobComponents textBlobComponents) { }
+                       QlTextBlobComponents textBlobComponents,
+                       QlFilesComponents filesComponents) { }

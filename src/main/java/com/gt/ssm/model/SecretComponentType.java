@@ -13,4 +13,7 @@ public record SecretComponentType(String id, String name, boolean encrypted, Str
     public static final String EXPIRATION_YEAR = "expiration_year";
 
     public static final String TEXT_BLOB = "text_blob";
+
+    public static final String FILE_ID = "file_id";
+    public static final String FILE_NAME = "file_name";
 }

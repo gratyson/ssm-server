@@ -305,6 +305,7 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
 CREATE TABLE IF NOT EXISTS secret_components
 (
     id character varying(64) COLLATE pg_catalog."default" NOT NULL,
+    line numeric,
     secret_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
     component_type character varying(64) COLLATE pg_catalog."default" NOT NULL,
     value character varying(1048576) COLLATE pg_catalog."default",
@@ -343,5 +344,53 @@ CREATE OR REPLACE TRIGGER "RowCreateTimestamp"
 CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     BEFORE INSERT OR UPDATE
     ON secret_components
+    FOR EACH ROW
+    EXECUTE FUNCTION "RowUpdateTimestamp"();
+
+
+
+
+-- Table: secret_files
+
+-- DROP TABLE IF EXISTS secret_files;
+
+CREATE TABLE IF NOT EXISTS secret_files
+(
+    file_id character varying(255) COLLATE pg_catalog."default" NOT NULL,
+    owner character varying(64) COLLATE pg_catalog."default",
+    encryption_algorithm character varying(255) COLLATE pg_catalog."default" NOT NULL,
+    file_oid oid NOT NULL,
+    md5_hash character varying(255) COLLATE pg_catalog."default",
+    create_instant timestamp with time zone,
+    update_instant timestamp with time zone,
+    CONSTRAINT secret_files_pkey PRIMARY KEY (file_id),
+    CONSTRAINT owner FOREIGN KEY (owner)
+        REFERENCES users (username) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS secret_files
+    OWNER to postgres;
+
+-- Trigger: RowCreateTimestamp
+
+-- DROP TRIGGER IF EXISTS "RowCreateTimestamp" ON secret_files;
+
+CREATE OR REPLACE TRIGGER "RowCreateTimestamp"
+    BEFORE INSERT
+    ON secret_files
+    FOR EACH ROW
+    EXECUTE FUNCTION "RowCreateTimestamp"();
+
+-- Trigger: RowUpdateTimestamp
+
+-- DROP TRIGGER IF EXISTS "RowUpdateTimestamp" ON secret_files;
+
+CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
+    BEFORE INSERT OR UPDATE
+    ON secret_files
     FOR EACH ROW
     EXECUTE FUNCTION "RowUpdateTimestamp"();

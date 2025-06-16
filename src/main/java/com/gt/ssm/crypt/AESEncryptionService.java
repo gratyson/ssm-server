@@ -1,6 +1,5 @@
 package com.gt.ssm.crypt;
 
-import com.google.crypto.tink.subtle.Base64;
 import com.gt.ssm.exception.SecretEncryptionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,14 +50,14 @@ public class AESEncryptionService implements EncryptionServiceForAlgorithm {
     }
 
     @Override
-    public String encrypt(String data, byte[] keyBytes, String iv) {
+    public byte[] encrypt(byte[] data, byte[] keyBytes, String iv) {
         try {
             SecretKey key = new SecretKeySpec(keyBytes, KEYSPEC_ALGORITHM);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, key, generateIvSpec(iv));
-            byte[] cipherText = cipher.doFinal(data.getBytes(Charset.forName(CHARSET_NAME)));
+            byte[] cipherText = cipher.doFinal(data);
 
-            return Base64.encode(cipherText);
+            return cipherText;
         } catch (GeneralSecurityException ex) {
             log.error("Exception occurred while encrypting data", ex);
             throw new SecretEncryptionException("Exception occurred while encrypting data", ex);
@@ -66,15 +65,14 @@ public class AESEncryptionService implements EncryptionServiceForAlgorithm {
     }
 
     @Override
-    public String decrypt(String encrypted, byte[] keyBytes, String iv) {
+    public byte[] decrypt(byte[] encrypted, byte[] keyBytes, String iv) {
         try {
             SecretKey key = new SecretKeySpec(keyBytes, KEYSPEC_ALGORITHM);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, key, generateIvSpec(iv));
-            byte[] cipherText = Base64.decode(encrypted);
-            byte[] plainText = cipher.doFinal(cipherText);
+            byte[] plainText = cipher.doFinal(encrypted);
 
-            return new String(plainText);
+            return plainText;
         } catch (GeneralSecurityException ex) {
             String errMsg = "Failed to decrypt";
 

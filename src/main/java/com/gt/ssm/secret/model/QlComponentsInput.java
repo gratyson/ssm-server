@@ -4,5 +4,7 @@ import java.util.Map;
 
 public interface QlComponentsInput {
 
-    Map<String, QlComponentInput> toComponentTypeInputs();
+    QlComponentInputs toComponentTypeInputs();
+
+    record QlComponentInputs(Map<String, QlComponentInput> scalarComponents, Map<String, QlComponentInput[]> arrayComponents) { }
 }
